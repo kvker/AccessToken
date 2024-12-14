@@ -103,6 +103,7 @@ async function onPostWxMpACode({ appId, appSecret, page, scene, env_version = 'r
     if (errorBufferString.includes('errcode')) {
       return JSON.parse(errorBufferString)
     }
+    fs.mkdirSync('public/images', { recursive: true })
     fs.writeFileSync('public/images/buffer.png', ret.data)
     return { data: { url: '/images/buffer.png' } }
   } catch (error) {
