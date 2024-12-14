@@ -1,5 +1,6 @@
 import express from 'express'
 import axios from 'axios'
+import fs from 'fs'
 
 const router = express.Router()
 
@@ -18,16 +19,19 @@ router.get('/', function (req, res) {
  * @returns {{data: {access_token: string, expires_in: number}}} 包含access_token的响应数据
  * @throws {Object} 400 - 缺少必需的appId或appSecret参数时返回错误
  */
-async function onGetWxMpAccessToken(req, res) {
+async function onGetWxMpAccessToken({ appId, appSecret }) {
+  const url = `https://api.weixin.qq.com/cgi-bin/token?appid=${appId}&secret=${appSecret}&grant_type=client_credential`
+  const { data } = await axios.get(url)
+  return data
+}
+router.get('/wx/mp', async (req, res) => {
   const { appId, appSecret } = req.query
   if (!appId || !appSecret) {
     return res.status(400).json({ error: 'appId and appSecret are required' })
   }
-  const url = `https://api.weixin.qq.com/cgi-bin/token?appid=${appId}&secret=${appSecret}&grant_type=client_credential`
-  const { data } = await axios.get(url)
+  const data = await onGetWxMpAccessToken({ appId, appSecret })
   res.json({ data })
-}
-router.get('/wx/mp', onGetWxMpAccessToken)
+})
 
 /**
  * 获取微信小程序用户openid，官方文档 https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-login/code2Session.html
@@ -59,24 +63,33 @@ router.get('/wx/openid', onGetWxMpOpenId)
  * @param {string} req.query.appSecret - 微信小程序的AppSecret
  * @param {string} req.query.page - 微信小程序的页面路径
  * @param {string} req.query.scene - 微信小程序的场景值
+ * @param {string} req.query.env_version - 要打开的小程序版本。正式版为 "release"，体验版为 "trial"，开发版为 "develop"。默认是正式版。
  * @param {Object} res - Express响应对象
  * @returns {Buffer} 返回二维码图片的Buffer
  * @throws {Object} 400 - 缺少必需的appId、appSecret、page或scene参数时返回错误
  */
 async function onPostWxMpACode(req, res) {
-  const { appId, appSecret, page, scene } = req.body
-  console.log({ appId, appSecret, page, scene })
+  const { appId, appSecret, page, scene, env_version = 'release' } = req.body
   if (!appId || !appSecret || !page) {
     return res.status(400).json({ error: 'appId and appSecret and page are required' })
   }
-  let { data } = await onGetWxMpAccessToken(req, res)
-  console.log(data)
-  const buffer = await axios.post(`https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=${data.access_token}`, {
-    scene,
-    page
-  })
-
-  res.send(buffer)
+  let data = await onGetWxMpAccessToken({ appId, appSecret })
+  const ret = await axios.post(
+    `https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=${data.access_token}`,
+    {
+      scene,
+      page,
+      env_version
+    },
+    { responseType: 'arraybuffer' }
+  )
+  const errorBufferString = ret.data.toString()
+  if (errorBufferString.includes('errcode')) {
+    console.log(errorBufferString)
+    return res.status(400).json({ error: JSON.parse(errorBufferString) })
+  }
+  fs.writeFileSync('public/images/buffer.png', ret.data)
+  res.json({ data: { url: '/images/buffer.png' } })
 }
 router.post('/wx/acode', onPostWxMpACode)
 

@@ -1,6 +1,8 @@
-# AccessToken
+# NodejsBussinessCN
 
 这是一个获取常见中国业务服务的Nodejs API服务，比如微信小程序登录、AccessToken、支付等。
+
+注意，各个接口或服务不要混用，都是独立不相干的。
 
 ## 使用
 
