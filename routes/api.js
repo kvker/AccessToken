@@ -63,12 +63,14 @@ router.get('/wx/openid', onGetWxMpOpenId)
  * @returns {Buffer} 返回二维码图片的Buffer
  * @throws {Object} 400 - 缺少必需的appId、appSecret、page或scene参数时返回错误
  */
-async function onGetWxMpACode(req, res) {
-  const { appId, appSecret, page, scene } = req.query
+async function onPostWxMpACode(req, res) {
+  const { appId, appSecret, page, scene } = req.body
+  console.log({ appId, appSecret, page, scene })
   if (!appId || !appSecret || !page) {
     return res.status(400).json({ error: 'appId and appSecret and page are required' })
   }
   let { data } = await onGetWxMpAccessToken(req, res)
+  console.log(data)
   const buffer = await axios.post(`https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=${data.access_token}`, {
     scene,
     page
@@ -76,6 +78,6 @@ async function onGetWxMpACode(req, res) {
 
   res.send(buffer)
 }
-router.get('/wx/acode', onGetWxMpACode)
+router.post('/wx/acode', onPostWxMpACode)
 
 export default router
