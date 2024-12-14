@@ -1,6 +1,6 @@
 # AccessToken
 
-这是一个获取常见AccessToken的API服务
+这是一个获取常见中国业务服务的Nodejs API服务，比如微信小程序登录、AccessToken、支付等。
 
 ## 使用
 
@@ -19,12 +19,14 @@ npm run dev
 
 ### 微信小程序
 
-#### 入参
+#### 微信小程序 AccessToken
+
+##### 入参
 
 - appId
 - appSecret
 
-#### 出参
+##### 出参
 
 - access_token
 - expires_in
