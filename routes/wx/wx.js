@@ -159,22 +159,31 @@ async function onPostWxPayV2(apiKey, orderInfo) {
     }, '') +
     'key=' +
     apiKey
-  console.log(signString)
   const hash = crypto.createHash('md5')
   const sign = hash.update(signString).digest('hex')
-  console.log(sign)
   wxOrderInfo.sign = sign
   const xml = new xml2js.Builder().buildObject(wxOrderInfo)
-  console.log(xml)
   const { data } = await axios.post('https://api.mch.weixin.qq.com/pay/unifiedorder', xml, {
     headers: {
       'Content-Type': 'application/xml'
     }
   })
-  console.log(data)
   const result = await xml2js.parseStringPromise(data)
-  console.log(result)
-  return result.xml
+  const timeStamp = Date.now() + ''
+  const prepayId = result.xml['prepay_id'][0]
+  const paySign = crypto
+    .createHash('md5')
+    .update(`appId=${appId}&nonceStr=${nonceString}&package=prepay_id=${prepayId}&signType=MD5&timeStamp=${timeStamp}&key=${apiKey}`)
+    .digest('hex')
+
+  return {
+    appId,
+    timeStamp,
+    nonceStr: nonceString,
+    package: `prepay_id=${prepayId}`,
+    signType: 'MD5',
+    paySign
+  }
 }
 router.post('/pay/v2', async (req, res) => {
   const { appId, appSecret, mchId, openId, notifyUrl, apiKey } = req.body
