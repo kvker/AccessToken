@@ -121,7 +121,7 @@ router.post('/acode', async (req, res) => {
 })
 
 /**
- * 调用微信支付V2版本统一下单接口，官方文档 https://pay.weixin.qq.com/wiki/doc/api/jsapi.php?chapter=9_1
+ * 调用微信支付V2版本统一下单接口，官方文档 https://pay.weixin.qq.com/doc/v2/merchant/4011940985
  * @param {Object} orderInfo - 订单信息对象
  * @param {string} orderInfo.appId - 微信支付分配的公众账号ID
  * @param {string} orderInfo.mchId - 微信支付分配的商户号
