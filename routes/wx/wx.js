@@ -1,6 +1,8 @@
 import express from 'express'
 import axios from 'axios'
 import fs from 'fs'
+import crypto from 'crypto'
+import xml2js from 'xml2js'
 
 const router = express.Router()
 
@@ -116,6 +118,126 @@ router.post('/acode', async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message })
   }
+})
+
+/**
+ * 调用微信支付V2版本统一下单接口，官方文档 https://pay.weixin.qq.com/wiki/doc/api/jsapi.php?chapter=9_1
+ * @param {Object} orderInfo - 订单信息对象
+ * @param {string} orderInfo.appId - 微信支付分配的公众账号ID
+ * @param {string} orderInfo.mchId - 微信支付分配的商户号
+ * @param {string} orderInfo.nonceString - 随机字符串
+ * @param {string} orderInfo.body - 商品描述
+ * @param {string} orderInfo.outTradeNo - 商户系统内部订单号
+ * @param {number} orderInfo.totalFee - 订单总金额，单位为分
+ * @param {string} orderInfo.notifyUrl - 接收微信支付异步通知回调地址
+ * @param {string} [orderInfo.openId] - 接收微信支付异步通知回调地址
+ * @param {string} [orderInfo.tradeType=JSAPI] - 交易类型,取值如下：JSAPI,NATIVE,APP，这里是小程序，默认JSAPI
+ * @returns {Promise<Object>} 微信支付统一下单接口返回的数据
+ * @throws {Error} 请求失败时抛出错误
+ */
+
+async function onPostWxPayV2(apiKey, orderInfo) {
+  const { appId, mchId, nonceString, body, attach, outTradeNo, totalFee, notifyUrl, openId, tradeType = 'JSAPI' } = orderInfo
+  const wxOrderInfo = {
+    appid: appId,
+    mch_id: mchId,
+    nonce_str: nonceString,
+    body,
+    attach,
+    out_trade_no: outTradeNo,
+    total_fee: totalFee,
+    notify_url: notifyUrl,
+    openid: openId,
+    trade_type: tradeType
+  }
+  let keys = Object.keys(wxOrderInfo)
+  keys.sort()
+  const signString =
+    keys.reduce((acc, key) => {
+      acc += `${key}=${wxOrderInfo[key]}&`
+      return acc
+    }, '') +
+    'key=' +
+    apiKey
+  console.log(signString)
+  const hash = crypto.createHash('md5')
+  const sign = hash.update(signString).digest('hex')
+  console.log(sign)
+  wxOrderInfo.sign = sign
+  const xml = new xml2js.Builder().buildObject(wxOrderInfo)
+  console.log(xml)
+  const { data } = await axios.post('https://api.mch.weixin.qq.com/pay/unifiedorder', xml, {
+    headers: {
+      'Content-Type': 'application/xml'
+    }
+  })
+  console.log(data)
+  const result = await xml2js.parseStringPromise(data)
+  console.log(result)
+  return result.xml
+}
+router.post('/pay/v2', async (req, res) => {
+  const { appId, appSecret, mchId, openId, notifyUrl, apiKey } = req.body
+  if (!appId || !appSecret || !mchId || !apiKey) {
+    return res.status(400).json({
+      error: 'appId and appSecret and mchId and apiKey are required'
+    })
+  }
+  const nonceString = crypto.randomBytes(16).toString('hex')
+  const body = '测试商品'
+  const attach = JSON.stringify({
+    name: '测试商品',
+    price: 1,
+    quantity: 1,
+    id: 123
+  })
+  const outTradeNo = crypto.randomBytes(16).toString('hex') // mock
+  const totalFee = 1
+  try {
+    const data = await onPostWxPayV2(apiKey, {
+      appId,
+      mchId,
+      nonceString,
+      body,
+      attach,
+      outTradeNo,
+      totalFee,
+      notifyUrl,
+      openId
+    })
+    res.json({ data })
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+
+/**
+ * 处理微信支付V2版本的支付结果通知，官方文档 https://pay.weixin.qq.com/wiki/doc/api/jsapi.php?chapter=9_7
+ * @param {string} xml - 微信支付通知的XML格式数据
+ * @returns {Promise<{data: Object}>} 包含解析后的支付结果数据
+ * @throws {Error} 解析XML数据失败时抛出错误
+ */
+async function onWxPayV2Notify(xml) {
+  // Custom here
+  return { data: xml }
+}
+router.post('/pay/v2/notify', async (req, res) => {
+  console.log(req.headers['content-type'])
+
+  if (!req.is('text/xml') && !req.is('application/xml')) {
+    return res.send(req.header || req.headers)
+  }
+  let xml = ''
+  await new Promise((s) => {
+    req.setEncoding('utf8')
+    req.on('data', (chunk) => (xml += chunk))
+    req.on('end', () => {
+      s(xml)
+    })
+  })
+  console.log(xml)
+  const data = await onWxPayV2Notify(xml)
+  res.send(data)
 })
 
 export default router
